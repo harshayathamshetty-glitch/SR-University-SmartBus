@@ -1,0 +1,131 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Login | SmartBus</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header>
+        <h2>SmartBus</h2>
+
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="login.html">Student Login</a>
+            <a href="dashboard.html">Track Bus</a>
+        </nav>
+    </header>
+
+    <main class="login-container">
+
+        <div class="login-card">
+
+            <h1>Student Login</h1>
+
+            <p>Enter your university Roll Number and Password to continue.</p>
+
+            <form id="loginForm">
+
+                <label for="studentId">University Roll Number</label>
+
+                <input
+                    type="text"
+                    id="studentId"
+                    name="studentId"
+                    placeholder="Enter your Roll Number"
+                    required
+                >
+
+                <label for="password">Password</label>
+
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter your Password"
+                    required
+                >
+
+                <button type="submit" class="button" id="loginButton">
+                    Login
+                </button>
+
+                <p id="message" role="status"></p>
+
+            </form>
+
+            <a href="index.html" class="back-link">
+                ← Back to Home
+            </a>
+
+        </div>
+
+    </main>
+
+    <script>
+        const loginForm = document.getElementById("loginForm");
+        const message = document.getElementById("message");
+        const loginButton = document.getElementById("loginButton");
+
+        loginForm.addEventListener("submit", async function(event) {
+
+            event.preventDefault();
+
+            const rollNumber = document.getElementById("studentId").value.trim();
+            const password = document.getElementById("password").value;
+
+            message.textContent = "Checking your login details...";
+            loginButton.disabled = true;
+
+            try {
+
+                const response = await fetch("http://127.0.0.1:5000/api/auth/login", {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        roll_number: rollNumber,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+
+                    sessionStorage.setItem("token", data.token);
+                    sessionStorage.setItem("studentRollNumber", data.student.roll_number);
+                    sessionStorage.setItem("studentName", data.student.student_name);
+
+                    message.textContent = "Login successful!";
+
+                    window.location.href = "dashboard.html";
+
+                } else {
+
+                    message.textContent = data.error || "Invalid login details.";
+
+                }
+
+            } catch (error) {
+
+                message.textContent = "Cannot connect to the server. Please start the backend.";
+
+            }
+
+            loginButton.disabled = false;
+
+        });
+    </script>
+
+</body>
+</html>

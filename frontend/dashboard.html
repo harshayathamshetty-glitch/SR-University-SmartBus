@@ -1,0 +1,344 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Bus Dashboard | SmartBus</title>
+
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <script>
+        // Check student login
+        const token = sessionStorage.getItem("token");
+
+        if (!token) {
+            window.location.replace("login.html");
+        }
+    </script>
+</head>
+
+<body>
+
+    <header>
+        <h2>SmartBus</h2>
+
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="login.html">Student Login</a>
+            <a href="dashboard.html">Track Bus</a>
+
+            <button class="button" id="logoutButton" type="button">
+                Logout
+            </button>
+        </nav>
+    </header>
+
+    <main class="dashboard">
+
+        <section class="dashboard-heading">
+            <h1>Bus Tracking Dashboard</h1>
+
+            <p id="welcomeMessage">Welcome to SmartBus!</p>
+
+            <p id="studentRoll"></p>
+
+            <p>Choose any available bus to check its route and location.</p>
+        </section>
+
+        <!-- Bus Selection -->
+        <section class="bus-selection">
+
+            <h2>Select Your Bus</h2>
+
+            <label for="busSelect">Available Buses</label>
+
+            <select id="busSelect">
+                <option value="">Loading buses...</option>
+            </select>
+
+            <button class="button" id="trackButton" type="button">
+                Track Bus
+            </button>
+
+            <p id="busMessage"></p>
+
+        </section>
+
+        <!-- Bus Information -->
+        <section class="bus-details">
+
+            <h2>Bus Information</h2>
+
+            <div class="detail-grid">
+
+                <div class="detail-card">
+                    <h3>Bus Number</h3>
+                    <p id="busNumber">--</p>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Driver Name</h3>
+                    <p id="driverName">--</p>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Distance Away</h3>
+                    <p id="distance">Not available</p>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Estimated Arrival</h3>
+                    <p id="arrivalTime">Not available</p>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Next Stop</h3>
+                    <p id="nextStop">Not available</p>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Bus Status</h3>
+                    <p id="busStatus">--</p>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- Bus Route -->
+        <section class="route-section">
+
+            <h2>Bus Route</h2>
+
+            <div class="route-list" id="routeList">
+                <p>Select a bus to view its route.</p>
+            </div>
+
+        </section>
+
+        <!-- Bus Location Map -->
+        <section class="map-section">
+
+            <h2>Bus Location Map</h2>
+
+            <p>
+                Bus locations are simulated for demonstration.
+                Actual GPS tracking will be added later.
+            </p>
+
+            <div id="map"></div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Smart College Bus Tracking System | Student Transportation</p>
+    </footer>
+
+    <!-- Leaflet Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Map and simulated bus movement -->
+    <script src="js/tracking.js"></script>
+
+    <!-- Dashboard and backend connection -->
+    <script>
+
+    (function() {
+
+        const busSelect = document.getElementById("busSelect");
+        const trackButton = document.getElementById("trackButton");
+        const busMessage = document.getElementById("busMessage");
+
+        let availableBuses = [];
+
+        const token = sessionStorage.getItem("token");
+
+        // Display student details
+        const studentName = sessionStorage.getItem("studentName");
+        const studentRoll = sessionStorage.getItem("studentRollNumber");
+
+        document.getElementById("welcomeMessage").textContent =
+            "Welcome, " + (studentName || "Student") + "!";
+
+        document.getElementById("studentRoll").textContent =
+            "Roll Number: " + (studentRoll || "");
+
+        // Logout
+        document.getElementById("logoutButton").addEventListener("click", function() {
+
+            sessionStorage.clear();
+
+            window.location.replace("login.html");
+
+        });
+
+        // Load buses from MySQL through Node.js
+        async function loadBuses() {
+
+            try {
+
+                const response = await fetch(
+                    "http://127.0.0.1:5000/api/buses",
+                    {
+                        method: "GET",
+                        headers: {
+                            "Authorization": "Bearer " + token
+                        }
+                    }
+                );
+
+                if (response.status === 401) {
+
+                    sessionStorage.clear();
+
+                    window.location.replace("login.html");
+
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error("Unable to load buses");
+                }
+
+                availableBuses = await response.json();
+
+                busSelect.innerHTML = "";
+
+                if (availableBuses.length === 0) {
+
+                    busSelect.innerHTML =
+                        '<option value="">No buses available</option>';
+
+                    return;
+                }
+
+                // Add buses to dropdown
+                availableBuses.forEach(function(bus) {
+
+                    const option = document.createElement("option");
+
+                    option.value = bus.bus_number;
+                    option.textContent = "Bus " + bus.bus_number;
+
+                    busSelect.appendChild(option);
+
+                });
+
+                // Display first bus initially
+                displayBusDetails();
+
+            }
+
+            catch (error) {
+
+                busSelect.innerHTML =
+                    '<option value="">Unable to load buses</option>';
+
+                busMessage.textContent =
+                    "Unable to connect to backend.";
+
+                console.error("Bus loading error:", error);
+
+            }
+
+        }
+
+        // Display selected bus information
+        function displayBusDetails() {
+
+            const selectedBus = availableBuses.find(function(bus) {
+
+                return bus.bus_number === busSelect.value;
+
+            });
+
+            if (!selectedBus) {
+                return;
+            }
+
+            document.getElementById("busNumber").textContent =
+                "Bus " + selectedBus.bus_number;
+
+            document.getElementById("driverName").textContent =
+                selectedBus.driver_name || "Not assigned";
+
+            document.getElementById("busStatus").textContent =
+                selectedBus.status;
+
+            document.getElementById("distance").textContent =
+                "Not available";
+
+            document.getElementById("arrivalTime").textContent =
+                "Not available";
+
+            document.getElementById("nextStop").textContent =
+                "Not available";
+
+            // Display selected bus route
+            const routeList = document.getElementById("routeList");
+
+            const routeParts = selectedBus.route_name.split(" - ");
+
+            routeList.innerHTML = "";
+
+            routeParts.forEach(function(stop, index) {
+
+                const stopElement = document.createElement("div");
+
+                stopElement.className = "route-stop";
+                stopElement.textContent = stop;
+
+                routeList.appendChild(stopElement);
+
+                if (index < routeParts.length - 1) {
+
+                    const line = document.createElement("div");
+
+                    line.className = "route-line";
+
+                    routeList.appendChild(line);
+
+                }
+
+            });
+
+            busMessage.textContent =
+                "Bus " + selectedBus.bus_number + " selected successfully.";
+
+            // Move map to selected bus
+            if (typeof window.showSelectedBusOnMap === "function") {
+
+                window.showSelectedBusOnMap(selectedBus.bus_number);
+
+            }
+
+        }
+
+        // Update information when dropdown changes
+        busSelect.addEventListener("change", function() {
+
+            displayBusDetails();
+
+        });
+
+        // Track Bus button
+        trackButton.addEventListener("click", function() {
+
+            displayBusDetails();
+
+        });
+
+        // Load buses when dashboard opens
+        loadBuses();
+
+    })();
+
+    </script>
+
+</body>
+</html>
